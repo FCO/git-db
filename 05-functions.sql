@@ -259,23 +259,37 @@ CREATE OR REPLACE FUNCTION login(_email VARCHAR) RETURNS BOOL AS $$
     END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, owner_id INTEGER, content TEXT) AS $$
     BEGIN
         RETURN QUERY
-        SELECT * FROM show_commit(commit1)
-        EXCEPT
-        SELECT * FROM show_commit(commit2);
+            SELECT
+                '+' op,
+                added.*
+            FROM
+                (
+                    SELECT * FROM show_commit(commit1)
+                    EXCEPT
+                    SELECT * FROM show_commit(commit2)
+                ) AS added
+            UNION
+            SELECT
+                '-' op,
+                removed.*
+            FROM
+                (
+                    SELECT * FROM show_commit(commit2)
+                    EXCEPT
+                    SELECT * FROM show_commit(commit1)
+                ) AS removed
+        ;
     END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, owner_id INTEGER, content TEXT) AS $$
     DECLARE
         commit1 CHAR(40);
     BEGIN
         commit1 := head();
-        RETURN QUERY
-        SELECT * FROM show_commit(commit1)
-        EXCEPT
-        SELECT * FROM show_commit(commit);
+        RETURN QUERY SELECT * FROM diff(commit1, commit);
     END;
 $$ LANGUAGE plpgsql;

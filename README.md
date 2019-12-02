@@ -26,9 +26,14 @@ select * from index;
 select commit();
 select * from commit;
 select * from blob;
+select * from show_commit();
 insert into index values('bli/ple', 1, 'test bli/ple');
 select commit();
 select * from commit;
 select * from blob;
+select * from show_commit();
 select * from diff('d4c3e114e65ed9b1935462d86613f22059ee2757');
+delete from index where path = 'ble';
+select commit();
+select * from diff('f131b51a02973f5dfe4fdd0c53e0c8c3045c4dbf');
 ```

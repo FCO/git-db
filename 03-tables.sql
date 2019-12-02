@@ -5,9 +5,10 @@ CREATE TABLE git_user(
 );
 
 CREATE TABLE index(
-	path varchar primary key,
+	path varchar,
 	owner_id integer,
-	content TEXT
+	content TEXT,
+	primary key(path, owner_id)
 );
 
 CREATE TABLE blob(
