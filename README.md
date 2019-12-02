@@ -15,6 +15,10 @@
 - head() RETURNS CHAR(40)
 - diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
 - diff(commit CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
+- checkout(commit_sha1 CHAR(40)) RETURNS VOID
+- checkout() RETURNS VOID
+- checkout_branch(_branch VARCHAR) RETURNS VOID
+- create_branch(_branch VARCHAR) RETURNS VOID
 
 
 
@@ -36,4 +40,19 @@ select * from diff('d4c3e114e65ed9b1935462d86613f22059ee2757');
 delete from index where path = 'ble';
 select commit();
 select * from diff('f131b51a02973f5dfe4fdd0c53e0c8c3045c4dbf');
+select * from diff('d4c3e114e65ed9b1935462d86613f22059ee2757');
+select * from index;
+select checkout('d4c3e114e65ed9b1935462d86613f22059ee2757');
+select * from index;
+select checkout_branch('master');
+select * from index;
+select create_branch('bla');
+delete from index;
+insert into index values('aaa', 1, 'test aaa from branch bla');
+select commit();
+select * from show_commit();
+select checkout_branch('master');
+select * from index;
+select checkout_branch('bla');
+select * from index;
 ```

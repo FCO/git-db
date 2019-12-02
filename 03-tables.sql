@@ -1,7 +1,12 @@
+CREATE TABLE refs(
+	branch varchar primary key
+);
+
 CREATE TABLE git_user(
 	id   serial not null primary key,
 	name varchar,
-	email varchar
+	email varchar,
+	current_branch varchar references refs(branch) default 'master'
 );
 
 CREATE TABLE index(
@@ -42,18 +47,13 @@ CREATE TABLE commit(
 	created TIMESTAMP not null default CURRENT_TIMESTAMP
 );
 
+ALTER TABLE refs ADD COLUMN commit_sha1 char(40) references commit(sha1);
+
 CREATE TABLE commit_tree(
 	commit_sha1 char(40) references commit(sha1),
 	tree_sha1 char(40) references tree(sha1),
 	primary key(commit_sha1, tree_sha1)
 );
-
-
-CREATE TABLE refs(
-	branch varchar primary key,
-	commit_sha1 char(40) references commit(sha1)
-);
-
 
 CREATE TABLE head(
 	user_id integer REFERENCES git_user(id) PRIMARY KEY,

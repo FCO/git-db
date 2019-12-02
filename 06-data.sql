@@ -1,3 +1,5 @@
+insert into refs values('master');
+
 insert into git_user(name, email) values('fernando', 'fernandocorrea@gmail.com');
 insert into index values('bla', 1, 'test bla');
 insert into index values('ble', 1, 'test ble');

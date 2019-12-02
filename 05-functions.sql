@@ -163,15 +163,22 @@ CREATE OR REPLACE FUNCTION commit() RETURNS CHAR(40) AS $$
 		tree CHAR(40);
 		_sha1 CHAR(40);
 		head_sha1 CHAR(40);
+		_current_branch VARCHAR;
+		_uid INTEGER;
 	BEGIN
+	    _uid := current_setting('git.logged_user_id')::integer;
 		tree := add();
 		SELECT commit_sha1 into head_sha1 FROM head;
 		IF head_sha1 IS NOT NULL THEN
 		    _sha1 := create_commit(ARRAY[tree], head_sha1);
-		    UPDATE head SET commit_sha1 = _sha1 WHERE user_id = current_setting('git.logged_user_id')::integer;
+		    UPDATE head SET commit_sha1 = _sha1 WHERE user_id = _uid;
 		ELSE
 		    _sha1 := create_commit(ARRAY[tree]);
-		    INSERT INTO head VALUES(current_setting('git.logged_user_id')::integer, _sha1);
+		    INSERT INTO head VALUES(_uid, _sha1);
+		END IF;
+		SELECT current_branch INTO _current_branch FROM git_user WHERE id = _uid;
+		IF _current_branch IS NOT NULL THEN
+		    UPDATE refs SET commit_sha1 = _sha1 WHERE branch = _current_branch;
 		END IF;
 		RETURN _sha1;
 	END;
@@ -291,5 +298,42 @@ CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VA
     BEGIN
         commit1 := head();
         RETURN QUERY SELECT * FROM diff(commit1, commit);
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION checkout(commit_sha1 CHAR(40)) RETURNS VOID AS $$
+    BEGIN
+        DELETE FROM index WHERE owner_id = current_setting('git.logged_user_id')::integer;
+        INSERT INTO index select * FROM show_commit(commit_sha1);
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION checkout() RETURNS VOID AS $$
+    BEGIN
+        DELETE FROM index WHERE owner_id = current_setting('git.logged_user_id')::integer;
+        INSERT INTO index select * FROM show_commit(head());
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION checkout_branch(_branch VARCHAR) RETURNS VOID AS $$
+    DECLARE
+        _sha1 CHAR(40);
+    BEGIN
+        SELECT commit_sha1 INTO _sha1 FROM refs WHERE branch = _branch;
+        PERFORM checkout(_sha1);
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION create_branch(_branch VARCHAR) RETURNS VOID AS $$
+    DECLARE
+        _sha1 CHAR(40);
+    BEGIN
+        SELECT commit_sha1 INTO _sha1 FROM refs WHERE branch = _branch;
+        IF _sha1 IS NOT NULL THEN
+            RAISE 'Branch % already exists', _branch;
+        END IF;
+        _sha1 := head();
+        INSERT INTO refs VALUES(_branch, _sha1);
+        UPDATE git_user SET current_branch = _branch WHERE id = current_setting('git.logged_user_id')::integer;
     END;
 $$ LANGUAGE plpgsql;
