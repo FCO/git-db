@@ -158,6 +158,17 @@ CREATE OR REPLACE FUNCTION add() RETURNS CHAR(40) AS $$
 	END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION current_branch() RETURNS CHAR(40) AS $$
+	DECLARE
+		_uid INTEGER;
+		_current_branch VARCHAR;
+	BEGIN
+	    _uid := current_setting('git.logged_user_id')::integer;
+		SELECT current_branch INTO _current_branch FROM git_user WHERE id = _uid;
+        RETURN _current_branch;
+	END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION commit() RETURNS CHAR(40) AS $$
 	DECLARE
 		tree CHAR(40);
@@ -301,10 +312,11 @@ CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VA
     END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION checkout(commit_sha1 CHAR(40)) RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION checkout(_commit_sha1 CHAR(40)) RETURNS VOID AS $$
     BEGIN
         DELETE FROM index WHERE owner_id = current_setting('git.logged_user_id')::integer;
-        INSERT INTO index select * FROM show_commit(commit_sha1);
+        INSERT INTO index select * FROM show_commit(_commit_sha1);
+        UPDATE head SET commit_sha1 = _commit_sha1 WHERE user_id = current_setting('git.logged_user_id')::integer;
     END;
 $$ LANGUAGE plpgsql;
 
@@ -336,4 +348,79 @@ CREATE OR REPLACE FUNCTION create_branch(_branch VARCHAR) RETURNS VOID AS $$
         INSERT INTO refs VALUES(_branch, _sha1);
         UPDATE git_user SET current_branch = _branch WHERE id = current_setting('git.logged_user_id')::integer;
     END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION is_descendant(_commit1 CHAR(40), _commit2 CHAR(40)) RETURNS VOID AS $$
+    DECLARE
+    BEGIN
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION commit_history(_commit_sha1 character) RETURNS TABLE (commit_sha1 CHAR(40)) AS $$
+	BEGIN
+		RETURN QUERY
+		WITH RECURSIVE commit_hist(sha1, parent1, parent2) AS (
+			SELECT
+				sha1,
+				parent1,
+				parent2
+			FROM
+				commit c
+			WHERE
+				sha1 = _commit_sha1
+			UNION
+			SELECT
+				p.sha1,
+				p.parent1,
+				p.parent2
+			FROM
+				commit_hist c
+				JOIN commit p ON c.parent1 = p.sha1 OR c.parent2 = p.sha1
+		)
+		SELECT
+			sha1
+		FROM
+			commit_hist
+		;
+	END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION commit_base(_from CHAR(40), _to CHAR(40)) RETURNS CHAR(40) AS $$
+	DECLARE
+		base CHAR(40);
+	BEGIN
+		SELECT
+			a.commit_sha1 as commit
+		INTO
+			base
+		FROM
+			commit_history(_from) a,
+			commit_history(_to) b
+		WHERE
+			a.commit_sha1 = b.commit_sha1
+		LIMIT
+			1
+		;
+
+		RETURN base;
+	END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION merge(_from CHAR(40), _to CHAR(40)) RETURNS CHAR(40) AS $$
+	DECLARE
+		base CHAR(40);
+		_current_branch CHAR(40);
+	BEGIN
+		_current_branch := current_branch();
+		base := commit_base(_from, _to);
+		IF base = _to THEN
+			RETURN _from;
+		ELSIF base = _from THEN
+			UPDATE refs SET commit_sha1 = _to WHERE branch = _current_branch;
+			RETURN _to;
+		ELSE
+            -- TODO: Implement the real merge
+			raise 'Not Yet Implemented';
+		END IF;
+	END;
 $$ LANGUAGE plpgsql;

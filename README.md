@@ -6,6 +6,7 @@
 - create_commit(tree_sha1 CHAR(40)[]) RETURNS CHAR(40)
 - add(files index[]) RETURNS CHAR(40)
 - add() RETURNS CHAR(40)
+- current_branch()
 - commit() RETURNS CHAR(40)
 - create_commit(tree_sha1 CHAR(40)[], parent_sha1 CHAR(40)) RETURNS CHAR(40)
 - create_commit(tree_sha1 CHAR(40)[], parent1_sha1 CHAR(40), parent2_sha1 CHAR(40)) RETURNS CHAR(40)
@@ -19,6 +20,9 @@
 - checkout() RETURNS VOID
 - checkout_branch(_branch VARCHAR) RETURNS VOID
 - create_branch(_branch VARCHAR) RETURNS VOID
+- commit_history(_commit_sha1 character) RETURNS TABLE (commit_sha1 CHAR(40))
+- commit_base(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)
+- merge(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)
 
 
 
@@ -55,4 +59,6 @@ select checkout_branch('master');
 select * from index;
 select checkout_branch('bla');
 select * from index;
+select commit_base('d4c3e114e65ed9b1935462d86613f22059ee2757', '4b7873e919dc7d26b5d2dc31a986e00731ddef17');
+select merge('d4c3e114e65ed9b1935462d86613f22059ee2757', '4b7873e919dc7d26b5d2dc31a986e00731ddef17'); -- NYFI
 ```
