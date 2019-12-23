@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION create_blob(data index_data) RETURNS char(40) as $$
+CREATE OR REPLACE FUNCTION create_blob(data JSONB) RETURNS char(40) as $$
 	DECLARE
 		_sha1 char(40);
 	BEGIN
@@ -9,9 +9,9 @@ CREATE OR REPLACE FUNCTION create_blob(data index_data) RETURNS char(40) as $$
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION cat_blob(_sha1 CHAR(40)) RETURNS index_data AS $$
+CREATE OR REPLACE FUNCTION cat_blob(_sha1 CHAR(40)) RETURNS JSONB AS $$
 	DECLARE
-		_data index_data;
+		_data JSONB;
 	BEGIN
 		SELECT INTO _data data FROM blob WHERE sha1 = _sha1;
 		RETURN _data;
@@ -197,7 +197,7 @@ $$ LANGUAGE plpgsql;
 
 
 
-CREATE OR REPLACE FUNCTION show_commit(commit CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION show_commit(commit CHAR(40)) RETURNS TABLE (path VARCHAR, content JSONB) AS $$
 	BEGIN
 		RETURN QUERY
 		WITH RECURSIVE blobs(levels, root, path, blob_sha1) AS (
@@ -237,8 +237,7 @@ CREATE OR REPLACE FUNCTION show_commit(commit CHAR(40)) RETURNS TABLE (path VARC
 		)
 		SELECT
 			f.path as path,
-			(b.data).owner_id as owner_id,
-			(b.data).content as content
+			b.data
 		FROM
 			commit_tree c
 			JOIN files_by_root f ON c.tree_sha1 = f.root
@@ -249,7 +248,7 @@ CREATE OR REPLACE FUNCTION show_commit(commit CHAR(40)) RETURNS TABLE (path VARC
 	END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION show_commit() RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION show_commit() RETURNS TABLE (path VARCHAR, content JSONB) AS $$
 	DECLARE
 		_sha1 CHAR(40);
 	BEGIN
@@ -272,12 +271,13 @@ CREATE OR REPLACE FUNCTION login(_email VARCHAR) RETURNS BOOL AS $$
         uid VARCHAR;
     BEGIN
         SELECT id::VARCHAR INTO uid FROM git_user WHERE git_user.email = _email;
+        INSERT INTO refs VALUES(uid::INTEGER, 'master') ON CONFLICT DO NOTHING;
         PERFORM set_config('git.logged_user_id', uid, FALSE);
         RETURN TRUE;
     END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, content JSONB) AS $$
     BEGIN
         RETURN QUERY
             SELECT
@@ -303,7 +303,7 @@ CREATE OR REPLACE FUNCTION diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABL
     END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, owner_id INTEGER, content TEXT) AS $$
+CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VARCHAR, content JSONB) AS $$
     DECLARE
         commit1 CHAR(40);
     BEGIN
@@ -313,17 +313,19 @@ CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VA
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION checkout(_commit_sha1 CHAR(40)) RETURNS VOID AS $$
+    DECLARE
+        uid INTEGER;
     BEGIN
-        DELETE FROM index WHERE owner_id = current_setting('git.logged_user_id')::integer;
-        INSERT INTO index select * FROM show_commit(_commit_sha1);
-        UPDATE head SET commit_sha1 = _commit_sha1 WHERE user_id = current_setting('git.logged_user_id')::integer;
+        uid := current_setting('git.logged_user_id')::INTEGER;
+        DELETE FROM index WHERE owner_id = uid;
+        INSERT INTO index select uid, path, content -> 'content' FROM show_commit(_commit_sha1);
+        UPDATE head SET commit_sha1 = _commit_sha1 WHERE user_id = uid;
     END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION checkout() RETURNS VOID AS $$
     BEGIN
-        DELETE FROM index WHERE owner_id = current_setting('git.logged_user_id')::integer;
-        INSERT INTO index select * FROM show_commit(head());
+        SELECT checkout(head());
     END;
 $$ LANGUAGE plpgsql;
 
@@ -338,15 +340,17 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION create_branch(_branch VARCHAR) RETURNS VOID AS $$
     DECLARE
+        uid INTEGER;
         _sha1 CHAR(40);
     BEGIN
+        uid := current_setting('git.logged_user_id')::INTEGER;
         SELECT commit_sha1 INTO _sha1 FROM refs WHERE branch = _branch;
         IF _sha1 IS NOT NULL THEN
             RAISE 'Branch % already exists', _branch;
         END IF;
         _sha1 := head();
-        INSERT INTO refs VALUES(_branch, _sha1);
-        UPDATE git_user SET current_branch = _branch WHERE id = current_setting('git.logged_user_id')::integer;
+        INSERT INTO refs VALUES(uid, _branch, _sha1);
+        UPDATE git_user SET current_branch = _branch WHERE id = uid;
     END;
 $$ LANGUAGE plpgsql;
 

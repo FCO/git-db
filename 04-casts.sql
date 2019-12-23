@@ -3,22 +3,8 @@ CREATE TYPE index_to_trees_row AS (
 	arr index[]
 );
 
-CREATE OR REPLACE FUNCTION cast_index_to_text(data index_data) returns TEXT AS $$
-	DECLARE
-		_text TEXT;
-	BEGIN
-		SELECT CONCAT_WS('|', data.owner_id, data.content) INTO _text;
-		RETURN _text;
-	END;
-$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION cast_index_to_jsonb(data index) RETURNS JSONB AS $$
+	SELECT jsonb_build_object('content', data.content);
+$$ LANGUAGE sql;
 
-CREATE CAST (index_data AS text) WITH FUNCTION cast_index_to_text(index_data) AS IMPLICIT;
-
-
-CREATE OR REPLACE FUNCTION cast_index_to_index_data(data index) returns index_data AS $$
-	BEGIN
-		RETURN (data.owner_id, data.content);
-	END;
-$$ LANGUAGE plpgsql;
-
-CREATE CAST (index AS index_data) WITH FUNCTION cast_index_to_index_data(index) AS IMPLICIT;
+CREATE CAST (index AS JSONB) WITH FUNCTION cast_index_to_jsonb(index) AS IMPLICIT;

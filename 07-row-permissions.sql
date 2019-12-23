@@ -1,10 +1,10 @@
-alter table index enable row level security;
-alter table head  enable row level security;
+ALTER TABLE index ENABLE ROW LEVEL SECURITY;
+ALTER TABLE head ENABLE ROW LEVEL SECURITY;
 
-create policy select_files on index for SELECT using (
-    owner_id = current_setting('git.logged_user_id')::integer
+CREATE POLICY select_files ON index FOR SELECT USING (
+    owner_id = current_setting('git.logged_user_id')::INTEGER
 );
 
-create policy select_head on head for SELECT using (
-    user_id = current_setting('git.logged_user_id')::integer
+CREATE POLICY select_head ON head FOR SELECT USING (
+    user_id = current_setting('git.logged_user_id')::INTEGER
 );
