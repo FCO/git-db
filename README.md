@@ -22,8 +22,8 @@
 - checkout_branch(_branch VARCHAR) RETURNS VOID
 - create_branch(_branch VARCHAR) RETURNS VOID
 - commit_history(_commit_sha1 character) RETURNS TABLE (commit_sha1 CHAR(40))
-- commit_base(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)
-- merge(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)
+- ~commit_base(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)~
+- ~merge(from CHAR(40), to CHAR(40)) RETURNS CHAR(40)~
 
 
 
@@ -63,5 +63,5 @@ select checkout_branch('master');
 select * from index;
 select checkout_branch('bla');
 select * from index;
-select commit_base('80c84b61405dad43947b711f531f97cc828f8f47', '5579fa8a480365ed9d18b0d5f97278c9ca4a3424');
+-- select commit_base('80c84b61405dad43947b711f531f97cc828f8f47', '5579fa8a480365ed9d18b0d5f97278c9ca4a3424');
 ```
