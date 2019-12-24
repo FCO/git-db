@@ -1,4 +1,4 @@
 CREATE TYPE key_value AS (
-	name varchar,
-	sha1 char(40)
+	name VARCHAR,
+	sha1 CHAR(40)
 );

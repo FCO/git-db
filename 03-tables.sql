@@ -1,13 +1,14 @@
 CREATE TABLE refs(
     owner_id INTEGER,
-	branch   VARCHAR PRIMARY KEY
+	branch   VARCHAR,
+    PRIMARY KEY(owner_id, branch)
 );
 
 CREATE TABLE git_user(
 	id             SERIAL NOT NULL PRIMARY KEY,
 	name           VARCHAR,
 	email          VARCHAR,
-	current_branch VARCHAR REFERENCES REFS(branch) DEFAULT 'master'
+	current_branch VARCHAR DEFAULT 'master'
 );
 
 INSERT INTO refs VALUES(0, 'master');
@@ -44,11 +45,11 @@ CREATE TABLE tree_tree(
 );
 
 CREATE TABLE commit(
-	sha1    CHAR(40) PRIMARY KEY,
-	parent1 CHAR(40) REFERENCES COMMIT(sha1),
-	parent2 CHAR(40) REFERENCES COMMIT(sha1),
-	user_id INTEGER REFERENCES GIT_USER(id),
-	created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	sha1     CHAR(40) PRIMARY KEY,
+	parent1  CHAR(40) REFERENCES COMMIT(sha1),
+	parent2  CHAR(40) REFERENCES COMMIT(sha1),
+	owner_id INTEGER  REFERENCES git_user(id),
+	created  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE refs ADD COLUMN commit_sha1 CHAR(40) REFERENCES commit(sha1);
@@ -61,7 +62,7 @@ CREATE TABLE commit_tree(
 );
 
 CREATE TABLE head(
-	user_id     INTEGER REFERENCES git_user(id) PRIMARY KEY,
+	owner_id    INTEGER REFERENCES git_user(id) PRIMARY KEY,
 	commit_sha1 CHAR(40)
 );
 

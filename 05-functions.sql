@@ -1,4 +1,10 @@
-CREATE OR REPLACE FUNCTION create_blob(data JSONB) RETURNS char(40) as $$
+CREATE OR REPLACE FUNCTION uid() RETURNS INTEGER as $$
+	BEGIN
+        RETURN current_setting('git.logged_user_id')::INTEGER;
+	END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION create_blob(data JSONB) RETURNS CHAR(40) AS $$
 	DECLARE
 		_sha1 char(40);
 	BEGIN
@@ -160,11 +166,9 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION current_branch() RETURNS CHAR(40) AS $$
 	DECLARE
-		_uid INTEGER;
 		_current_branch VARCHAR;
 	BEGIN
-	    _uid := current_setting('git.logged_user_id')::integer;
-		SELECT current_branch INTO _current_branch FROM git_user WHERE id = _uid;
+		SELECT current_branch INTO _current_branch FROM git_user WHERE id = uid();
         RETURN _current_branch;
 	END;
 $$ LANGUAGE plpgsql;
@@ -175,19 +179,17 @@ CREATE OR REPLACE FUNCTION commit() RETURNS CHAR(40) AS $$
 		_sha1 CHAR(40);
 		head_sha1 CHAR(40);
 		_current_branch VARCHAR;
-		_uid INTEGER;
 	BEGIN
-	    _uid := current_setting('git.logged_user_id')::integer;
 		tree := add();
 		SELECT commit_sha1 into head_sha1 FROM head;
 		IF head_sha1 IS NOT NULL THEN
 		    _sha1 := create_commit(ARRAY[tree], head_sha1);
-		    UPDATE head SET commit_sha1 = _sha1 WHERE user_id = _uid;
+		    UPDATE head SET commit_sha1 = _sha1 WHERE owner_id = uid();
 		ELSE
 		    _sha1 := create_commit(ARRAY[tree]);
-		    INSERT INTO head VALUES(_uid, _sha1);
+		    INSERT INTO head VALUES(uid(), _sha1);
 		END IF;
-		SELECT current_branch INTO _current_branch FROM git_user WHERE id = _uid;
+		SELECT current_branch INTO _current_branch FROM git_user WHERE id = uid();
 		IF _current_branch IS NOT NULL THEN
 		    UPDATE refs SET commit_sha1 = _sha1 WHERE branch = _current_branch;
 		END IF;
@@ -261,17 +263,29 @@ CREATE OR REPLACE FUNCTION head() RETURNS CHAR(40) AS $$
 	DECLARE
 		_sha1 CHAR(40);
     BEGIN
-        SELECT commit_sha1 INTO _sha1 FROM head WHERE user_id = current_setting('git.logged_user_id')::integer;
+        SELECT commit_sha1 INTO _sha1 FROM head WHERE owner_id = uid();
         RETURN _sha1;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION create_user(_name VARCHAR, _email VARCHAR) RETURNS BOOL AS $$
+    DECLARE
+        uid VARCHAR;
+        _sha1 CHAR(40);
+    BEGIN
+        INSERT INTO git_user(name, email) VALUES(_name, _email) RETURNING id INTO uid;
+        SELECT commit_sha1 INTO _sha1 FROM refs WHERE branch = 'master' and owner_id = 0;
+        INSERT INTO refs VALUES(uid::INTEGER, 'master', _sha1);
+        RETURN TRUE;
     END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION login(_email VARCHAR) RETURNS BOOL AS $$
     DECLARE
         uid VARCHAR;
+        _sha1 CHAR(40);
     BEGIN
         SELECT id::VARCHAR INTO uid FROM git_user WHERE git_user.email = _email;
-        INSERT INTO refs VALUES(uid::INTEGER, 'master') ON CONFLICT DO NOTHING;
         PERFORM set_config('git.logged_user_id', uid, FALSE);
         RETURN TRUE;
     END;
@@ -313,13 +327,10 @@ CREATE OR REPLACE FUNCTION diff(commit CHAR(40)) RETURNS TABLE (op TEXT, path VA
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION checkout(_commit_sha1 CHAR(40)) RETURNS VOID AS $$
-    DECLARE
-        uid INTEGER;
     BEGIN
-        uid := current_setting('git.logged_user_id')::INTEGER;
-        DELETE FROM index WHERE owner_id = uid;
-        INSERT INTO index select uid, path, content -> 'content' FROM show_commit(_commit_sha1);
-        UPDATE head SET commit_sha1 = _commit_sha1 WHERE user_id = uid;
+        DELETE FROM index WHERE owner_id = uid();
+        INSERT INTO index select uid() as uid, path, content -> 'content' FROM show_commit(_commit_sha1);
+        UPDATE head SET commit_sha1 = _commit_sha1 WHERE owner_id = uid();
     END;
 $$ LANGUAGE plpgsql;
 
@@ -340,17 +351,15 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION create_branch(_branch VARCHAR) RETURNS VOID AS $$
     DECLARE
-        uid INTEGER;
         _sha1 CHAR(40);
     BEGIN
-        uid := current_setting('git.logged_user_id')::INTEGER;
         SELECT commit_sha1 INTO _sha1 FROM refs WHERE branch = _branch;
         IF _sha1 IS NOT NULL THEN
             RAISE 'Branch % already exists', _branch;
         END IF;
         _sha1 := head();
-        INSERT INTO refs VALUES(uid, _branch, _sha1);
-        UPDATE git_user SET current_branch = _branch WHERE id = uid;
+        INSERT INTO refs VALUES(uid(), _branch, _sha1);
+        UPDATE git_user SET current_branch = _branch WHERE id = uid();
     END;
 $$ LANGUAGE plpgsql;
 

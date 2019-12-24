@@ -1,5 +1,7 @@
 # git-db
 
+- create_user(_name VARCHAR, email VARCHAR) RETURNS BOOL
+- login(_email VARCHAR) RETURNS BOOLEAN
 - create_blob(data index_data) RETURNS char(40)
 - cat_blob(_sha1 CHAR(40)) RETURNS index_data
 - create_tree(blob_pair key_value[], tree_pair key_value[]) RETURNS CHAR(40)
@@ -12,7 +14,6 @@
 - create_commit(tree_sha1 CHAR(40)[], parent1_sha1 CHAR(40), parent2_sha1 CHAR(40)) RETURNS CHAR(40)
 - show_commit(commit CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
 - show_commit() RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
-- login(_email VARCHAR) RETURNS BOOLEAN
 - head() RETURNS CHAR(40)
 - diff(commit1 CHAR(40), commit2 CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
 - diff(commit CHAR(40)) RETURNS TABLE (path VARCHAR, owner_id INTEGER, content TEXT)
@@ -29,36 +30,38 @@
 
 
 ```sql
-select login('fernandocorrea@gmail.com');
+select login('fernandocorrea@gmail.com');							-- TRUE
+set role gituser;
+SELECT uid();
+select * from git_user;
 select * from index;
-select commit();
+select commit();													-- 8e40203ff76fa96b0b3cdb7b8a3c8e7018a1e613
 select * from commit;
 select * from blob;
 select * from show_commit();
-insert into index values('bli/ple', 1, 'test bli/ple');
-select commit();
+insert into index values(1, 'bli/ple', 'test bli/ple');
+select commit();													-- 5579fa8a480365ed9d18b0d5f97278c9ca4a3424
 select * from commit;
 select * from blob;
 select * from show_commit();
-select * from diff('d4c3e114e65ed9b1935462d86613f22059ee2757');
+select * from diff('8e40203ff76fa96b0b3cdb7b8a3c8e7018a1e613');
 delete from index where path = 'ble';
-select commit();
-select * from diff('f131b51a02973f5dfe4fdd0c53e0c8c3045c4dbf');
-select * from diff('d4c3e114e65ed9b1935462d86613f22059ee2757');
+select commit();													-- 923914790343178a02b696a7fb0da36a9502378a
+select * from diff('8e40203ff76fa96b0b3cdb7b8a3c8e7018a1e613');
+select * from diff('5579fa8a480365ed9d18b0d5f97278c9ca4a3424');
 select * from index;
-select checkout('d4c3e114e65ed9b1935462d86613f22059ee2757');
+select checkout('5579fa8a480365ed9d18b0d5f97278c9ca4a3424');
 select * from index;
 select checkout_branch('master');
 select * from index;
 select create_branch('bla');
 delete from index;
-insert into index values('aaa', 1, 'test aaa from branch bla');
-select commit();
+insert into index values(1, 'aaa', 'test aaa from branch bla');
+select commit();													-- 80c84b61405dad43947b711f531f97cc828f8f47
 select * from show_commit();
 select checkout_branch('master');
 select * from index;
 select checkout_branch('bla');
 select * from index;
-select commit_base('d4c3e114e65ed9b1935462d86613f22059ee2757', '4b7873e919dc7d26b5d2dc31a986e00731ddef17');
-select merge('d4c3e114e65ed9b1935462d86613f22059ee2757', '4b7873e919dc7d26b5d2dc31a986e00731ddef17'); -- NYFI
+select commit_base('80c84b61405dad43947b711f531f97cc828f8f47', '5579fa8a480365ed9d18b0d5f97278c9ca4a3424');
 ```
