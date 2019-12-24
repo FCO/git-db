@@ -46,19 +46,18 @@ CREATE TABLE tree_tree(
 
 CREATE TABLE commit(
 	sha1     CHAR(40) PRIMARY KEY,
-	parent1  CHAR(40) REFERENCES COMMIT(sha1),
-	parent2  CHAR(40) REFERENCES COMMIT(sha1),
-	owner_id INTEGER  REFERENCES git_user(id),
+	owner_id INTEGER  REFERENCES git_user(id) DEFAULT uid(),
+    tree     CHAR(40) REFERENCES tree(sha1),
 	created  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE refs ADD COLUMN commit_sha1 CHAR(40) REFERENCES commit(sha1);
 ALTER TABLE refs ADD CONSTRAINT refs_owner_id FOREIGN KEY(owner_id) REFERENCES git_user(id);
 
-CREATE TABLE commit_tree(
-	commit_sha1 CHAR(40) REFERENCES commit(sha1),
-	tree_sha1   CHAR(40) REFERENCES tree(sha1),
-	PRIMARY KEY(commit_sha1, tree_sha1)
+CREATE TABLE commit_parent(
+	parent_sha1 CHAR(40) REFERENCES commit(sha1),
+	child_sha1  CHAR(40) REFERENCES commit(sha1),
+	PRIMARY KEY(parent_sha1, child_sha1)
 );
 
 CREATE TABLE head(

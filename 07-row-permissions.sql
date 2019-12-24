@@ -7,9 +7,8 @@ GRANT EXECUTE ON FUNCTION uid()                                         TO gitus
 GRANT EXECUTE ON FUNCTION create_blob(JSONB)                            TO gituser;
 GRANT EXECUTE ON FUNCTION cat_blob(CHAR(40))                            TO gituser;
 GRANT EXECUTE ON FUNCTION create_tree(key_value[], key_value[])         TO gituser;
-GRANT EXECUTE ON FUNCTION create_commit(CHAR(40)[])                     TO gituser;
-GRANT EXECUTE ON FUNCTION create_commit(CHAR(40)[], CHAR(40))           TO gituser;
-GRANT EXECUTE ON FUNCTION create_commit(CHAR(40)[], CHAR(40), CHAR(40)) TO gituser;
+GRANT EXECUTE ON FUNCTION create_commit(CHAR(40))                       TO gituser;
+GRANT EXECUTE ON FUNCTION create_commit(CHAR(40), CHAR(40)[])           TO gituser;
 GRANT EXECUTE ON FUNCTION add(index[])                                  TO gituser;
 GRANT EXECUTE ON FUNCTION add()                                         TO gituser;
 GRANT EXECUTE ON FUNCTION current_branch()                              TO gituser;
@@ -40,10 +39,10 @@ CREATE POLICY select_files    ON "index"    FOR ALL TO gituser USING (owner_id =
 CREATE POLICY select_head     ON "head"     FOR ALL TO gituser USING (owner_id = uid());
 CREATE POLICY select_refs     ON "refs"     FOR ALL TO gituser USING (owner_id = uid());
 
-GRANT ALL ON TABLE blob        TO gituser;
-GRANT ALL ON TABLE tree        TO gituser;
-GRANT ALL ON TABLE tree_blob   TO gituser;
-GRANT ALL ON TABLE tree_tree   TO gituser;
-GRANT ALL ON TABLE commit      TO gituser;
-GRANT ALL ON TABLE commit_tree TO gituser;
-GRANT ALL ON TABLE refs        TO gituser;
+GRANT ALL ON TABLE blob          TO gituser;
+GRANT ALL ON TABLE tree          TO gituser;
+GRANT ALL ON TABLE tree_blob     TO gituser;
+GRANT ALL ON TABLE tree_tree     TO gituser;
+GRANT ALL ON TABLE commit        TO gituser;
+GRANT ALL ON TABLE commit_parent TO gituser;
+GRANT ALL ON TABLE refs          TO gituser;

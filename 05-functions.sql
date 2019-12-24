@@ -1,9 +1,3 @@
-CREATE OR REPLACE FUNCTION uid() RETURNS INTEGER as $$
-	BEGIN
-        RETURN current_setting('git.logged_user_id')::INTEGER;
-	END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION create_blob(data JSONB) RETURNS CHAR(40) AS $$
 	DECLARE
 		_sha1 char(40);
@@ -43,45 +37,36 @@ CREATE OR REPLACE FUNCTION create_tree(blob_pair key_value[], tree_pair key_valu
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION create_commit(tree_sha1 CHAR(40)[]) RETURNS CHAR(40) AS $$
-	DECLARE
-		_sha1 char(40);
-		sha1 CHAR(40);
+CREATE OR REPLACE FUNCTION create_commit(tree_sha1 CHAR(40)) RETURNS CHAR(40) AS $$
 	BEGIN
-		SELECT ENCODE(DIGEST(CONCAT_WS('|||', NULL, NULL, CAST(tree_sha1 AS TEXT)), 'sha1'), 'hex') INTO _sha1;
-		INSERT INTO COMMIT VALUES(_sha1) ON CONFLICT DO NOTHING;
-		FOREACH sha1 IN ARRAY tree_sha1 LOOP
-			INSERT INTO commit_tree VALUES(_sha1, sha1) ON CONFLICT DO NOTHING;
-		END LOOP;
-		RETURN _sha1;
+        RETURN create_commit(tree_sha1, ARRAY[]::CHAR(40)[]);
 	END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION create_commit(tree_sha1 CHAR(40)[], parent_sha1 CHAR(40)) RETURNS CHAR(40) AS $$
+CREATE OR REPLACE FUNCTION create_commit(tree_sha1 CHAR(40), parents_sha1 CHAR(40)[]) RETURNS CHAR(40) AS $$
 	DECLARE
 		_sha1 char(40);
 		sha1 CHAR(40);
 	BEGIN
-		SELECT ENCODE(DIGEST(CONCAT_WS('|||', parent_sha1, NULL, CAST(tree_sha1 AS TEXT)), 'sha1'), 'hex') INTO _sha1;
-		INSERT INTO commit VALUES(_sha1, parent_sha1) ON CONFLICT DO NOTHING;
-		FOREACH sha1 IN ARRAY tree_sha1 LOOP
-			INSERT INTO commit_tree VALUES(_sha1, sha1) ON CONFLICT DO NOTHING;
-		END LOOP;
-		RETURN _sha1;
-	END;
-$$ LANGUAGE plpgsql;
-
-
-CREATE OR REPLACE FUNCTION create_commit(tree_sha1 CHAR(40)[], parent1_sha1 CHAR(40), parent2_sha1 CHAR(40)) RETURNS CHAR(40) AS $$
-	DECLARE
-		_sha1 char(40);
-		sha1 CHAR(40);
-	BEGIN
-		SELECT ENCODE(DIGEST(CONCAT_WS('|||', parent1_sha1, parent2_sha1, CAST(tree_sha1 AS TEXT)), 'sha1'), 'hex') INTO _sha1;
-		INSERT INTO commit VALUES(_sha1, parent_sha1) ON CONFLICT DO NOTHING;
-		FOREACH sha1 IN ARRAY tree_sha1 LOOP
-			INSERT INTO commit_tree VALUES(_sha1, sha1) ON CONFLICT DO NOTHING;
+		SELECT
+            ENCODE(
+                DIGEST(
+                    JSON_BUILD_OBJECT(
+                        'parents', parents_sha1,
+                        'owner',   uid(),
+                        'tree',    CAST(tree_sha1 AS TEXT)
+                    )::TEXT,
+                    'sha1'
+                ),
+                'hex'
+            )
+        INTO
+            _sha1
+        ;
+		INSERT INTO commit(sha1, owner_id, tree) VALUES(_sha1, uid(), tree_sha1) ON CONFLICT DO NOTHING;
+		FOREACH sha1 IN ARRAY parents_sha1 LOOP
+			INSERT INTO commit_parent VALUES(sha1, _sha1) ON CONFLICT DO NOTHING;
 		END LOOP;
 		RETURN _sha1;
 	END;
@@ -183,10 +168,10 @@ CREATE OR REPLACE FUNCTION commit() RETURNS CHAR(40) AS $$
 		tree := add();
 		SELECT commit_sha1 into head_sha1 FROM head;
 		IF head_sha1 IS NOT NULL THEN
-		    _sha1 := create_commit(ARRAY[tree], head_sha1);
+		    _sha1 := create_commit(tree, ARRAY[head_sha1]);
 		    UPDATE head SET commit_sha1 = _sha1 WHERE owner_id = uid();
 		ELSE
-		    _sha1 := create_commit(ARRAY[tree]);
+		    _sha1 := create_commit(tree);
 		    INSERT INTO head VALUES(uid(), _sha1);
 		END IF;
 		SELECT current_branch INTO _current_branch FROM git_user WHERE id = uid();
@@ -241,11 +226,11 @@ CREATE OR REPLACE FUNCTION show_commit(commit CHAR(40)) RETURNS TABLE (path VARC
 			f.path as path,
 			b.data
 		FROM
-			commit_tree c
-			JOIN files_by_root f ON c.tree_sha1 = f.root
+			commit c
+			JOIN files_by_root f ON c.tree = f.root
 			JOIN "blob" b ON f.blob_sha1 = b.sha1
 		WHERE
-			c.commit_sha1 = "commit"
+			c.sha1 = "commit"
 		;
 	END;
 $$ LANGUAGE plpgsql;
@@ -369,6 +354,7 @@ CREATE OR REPLACE FUNCTION is_descendant(_commit1 CHAR(40), _commit2 CHAR(40)) R
     END;
 $$ LANGUAGE plpgsql;
 
+-- TODO: Fix
 CREATE OR REPLACE FUNCTION commit_history(_commit_sha1 character) RETURNS TABLE (commit_sha1 CHAR(40)) AS $$
 	BEGIN
 		RETURN QUERY
@@ -398,6 +384,7 @@ CREATE OR REPLACE FUNCTION commit_history(_commit_sha1 character) RETURNS TABLE 
 	END;
 $$ LANGUAGE plpgsql;
 
+-- TODO: Fix
 CREATE OR REPLACE FUNCTION commit_base(_from CHAR(40), _to CHAR(40)) RETURNS CHAR(40) AS $$
 	DECLARE
 		base CHAR(40);
@@ -419,6 +406,7 @@ CREATE OR REPLACE FUNCTION commit_base(_from CHAR(40), _to CHAR(40)) RETURNS CHA
 	END;
 $$ LANGUAGE plpgsql;
 
+-- TODO: Fix
 CREATE OR REPLACE FUNCTION merge(_from CHAR(40), _to CHAR(40)) RETURNS CHAR(40) AS $$
 	DECLARE
 		base CHAR(40);
