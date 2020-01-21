@@ -31,7 +31,6 @@
 
 ```sql
 select login('fernandocorrea@gmail.com');							-- TRUE
-set role gituser;
 SELECT uid();
 select * from git_user;
 select * from index;

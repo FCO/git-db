@@ -270,8 +270,10 @@ CREATE OR REPLACE FUNCTION login(_email VARCHAR) RETURNS BOOL AS $$
         uid VARCHAR;
         _sha1 CHAR(40);
     BEGIN
+        SET ROLE gitdb;
         SELECT id::VARCHAR INTO uid FROM git_user WHERE git_user.email = _email;
         PERFORM set_config('git.logged_user_id', uid, FALSE);
+        SET ROLE gituser;
         RETURN TRUE;
     END;
 $$ LANGUAGE plpgsql;
