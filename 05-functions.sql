@@ -360,28 +360,30 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION commit_history(_commit_sha1 character) RETURNS TABLE (commit_sha1 CHAR(40)) AS $$
 	BEGIN
 		RETURN QUERY
-		WITH RECURSIVE commit_hist(sha1, parent1, parent2) AS (
+      		WITH RECURSIVE commit_hist(parent_sha1, child_sha1) AS (
 			SELECT
-				sha1,
-				parent1,
-				parent2
+				parent_sha1,
+				child_sha1
 			FROM
-				commit c
+				commit_parent c
 			WHERE
-				sha1 = _commit_sha1
+				child_sha1 = _commit_sha1
 			UNION
 			SELECT
-				p.sha1,
-				p.parent1,
-				p.parent2
+				p.parent_sha1,
+				p.child_sha1
 			FROM
 				commit_hist c
-				JOIN commit p ON c.parent1 = p.sha1 OR c.parent2 = p.sha1
+				LEFT JOIN commit_parent p ON c.parent_sha1 = p.child_sha1
 		)
+		SELECT _commit_sha1 AS sha1
+		UNION ALL
 		SELECT
-			sha1
+			parent_sha1 as sha1
 		FROM
 			commit_hist
+		WHERE
+			child_sha1 IS NOT NULL
 		;
 	END;
 $$ LANGUAGE plpgsql;
